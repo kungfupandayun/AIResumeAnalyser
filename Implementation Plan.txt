@@ -1,0 +1,44 @@
+Implementation Plan: AI Resume Analyzer API
+
+Build a production-ready FastAPI service using a hybrid approach: keyword-based matching (spaCy/scikit-learn) for deterministic scoring + semantic analysis (OpenAI embeddings) for intelligent gap detection. Upload PDFs, extract text, compare against job descriptions, and return match scores, missing keywords, and improvement suggestions.
+
+8 Implementation Phases
+Phase 1: Project Setup & Infrastructure (1-2 hrs)
+
+Create FastAPI structure, install dependencies, download spaCy model, setup environment config
+Phase 2: Data Models & API Schemas (1 hr)
+
+Define Pydantic request/response schemas (upload, job description, analysis results)
+Phase 3: PDF Extraction & Text Processing (2-3 hrs)
+
+Extract PDF text via pypdf, clean text, apply spaCy NLP pipeline for tokenization/entities
+Phase 4: Keyword-Based Matching (3-4 hrs)
+
+Extract job keywords, search resume for matches, calculate TF-IDF weighted match scores, identify gaps
+Phase 5: Semantic Analysis (OpenAI) (2-3 hrs | parallel with Phase 4)
+
+Use OpenAI embeddings for semantic similarity, generate AI suggestions, fallback to keyword-only if API fails
+Phase 6: API Endpoints & Integration (2-3 hrs)
+
+Create /analyze endpoint, orchestrate all services, add validation and error handling
+Phase 7: Testing & Documentation (2-3 hrs)
+
+Unit tests, integration tests, Swagger API docs
+Phase 8: Optimization & Deployment (2-4 hrs)
+
+Caching, Docker containerization, deployment to cloud platform (AWS/Heroku/etc.)
+Key Files to Create
+main.py — FastAPI app + route orchestration
+services/pdf_extractor.py — PDF text extraction
+services/text_processor.py — spaCy NLP pipeline
+services/keyword_matcher.py — Keyword scoring & gaps
+services/semantic_analyzer.py — OpenAI embeddings + suggestions
+schemas.py — Pydantic request/response models
+core/config.py — Environment configuration
+requirements.txt, Dockerfile, tests/
+Technical Decisions Made
+✅ Keyword-only fallback if OpenAI unavailable
+✅ spaCy en_core_web_sm for lightweight deployment
+✅ pypdf for PDF extraction
+✅ Redis optional for caching (Phase 8)
+✅ Stateless API for MVP (database/history optional in future)
