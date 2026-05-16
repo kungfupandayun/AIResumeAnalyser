@@ -1,0 +1,70 @@
+# Canonical skill -> list of aliases. All matching is case-insensitive.
+kubernetes:
+  - k8s
+  - container orchestration
+postgresql:
+  - postgres
+  - pg
+  - postgre
+javascript:
+  - js
+  - ecmascript
+typescript:
+  - ts
+fastapi:
+  - fast api
+python:
+  - python3
+  - py
+"ci/cd":
+  - continuous integration
+  - continuous delivery
+  - github actions
+  - jenkins
+  - gitlab ci
+aws:
+  - amazon web services
+  - ec2
+  - s3
+gcp:
+  - google cloud
+  - google cloud platform
+azure:
+  - microsoft azure
+docker:
+  - containers
+  - containerization
+"rest apis":
+  - rest
+  - restful
+  - http api
+graphql:
+  - gql
+microservices:
+  - micro services
+  - service oriented architecture
+sql:
+  - relational database
+nosql:
+  - mongodb
+  - dynamodb
+  - cassandra
+redis:
+  - in-memory cache
+  - key-value store
+machine learning:
+  - ml
+  - machine-learning
+deep learning:
+  - dl
+  - neural networks
+nlp:
+  - natural language processing
+react:
+  - reactjs
+  - react.js
+node.js:
+  - nodejs
+  - node
+git:
+  - version control

@@ -1,6 +1,90 @@
+import sys
+import importlib
+
 import pytest
+import hashlib
+import json
+import math
+from typing import List, Optional
 from fastapi.testclient import TestClient
 from datetime import date
+
+
+def _seed_app_module_aliases():
+    """Pre-seed sys.modules so 'app.X' and 'X' resolve to the same objects.
+
+    pytest.ini sets pythonpath = app, so bare imports ('models.analysis')
+    and app-prefixed imports ('app.models.analysis') would create two
+    separate module objects with incompatible Pydantic v2 class identities.
+
+    Strategy: import bare modules first, then register them under the
+    'app.' namespace in sys.modules before any test-module import can
+    create a divergent 'app.' copy.
+
+    Also wire submodule attributes on parent module objects so that
+    monkeypatch.setattr("app.services.analyzer.X") can resolve by
+    walking getattr chains: app -> services -> analyzer -> X.
+    """
+    bare_prefixes = [
+        "models",
+        "models.analysis",
+        "models.job",
+        "models.resume",
+        "models.resumeInRawText",
+        "services",
+        "services.scorers",
+        "services.scorers.base",
+        "services.scorers.skills",
+        "services.scorers.experience",
+        "services.scorers.seniority",
+        "services.scorers.education",
+        "services.scorers.summary",
+        "services.ai_client",
+        "services.analyzer",
+        "services.suggestions",
+        "services.resume_service",
+        "core",
+        "core.config",
+        "utils",
+        "data",
+    ]
+    for bare in bare_prefixes:
+        try:
+            mod = importlib.import_module(bare)
+        except ModuleNotFoundError:
+            continue
+        app_key = f"app.{bare}"
+        sys.modules.setdefault(app_key, mod)
+
+    # Force-import the real app package so sys.modules["app"] is populated,
+    # then wire bare submodule objects as attributes on the app module hierarchy.
+    # This is needed so monkeypatch.setattr("app.services.analyzer.X") can
+    # traverse: __import__("app") -> getattr(app, "services") -> getattr(services, "analyzer")
+    try:
+        app_mod = importlib.import_module("app")
+    except ModuleNotFoundError:
+        return
+
+    for bare in bare_prefixes:
+        bare_mod = sys.modules.get(bare)
+        if bare_mod is None:
+            continue
+        # Walk the dotted parts and set attributes at each level.
+        parts = bare.split(".")
+        parent = app_mod
+        for part in parts:
+            if not hasattr(parent, part):
+                parent_key = parent.__name__ + "." + part
+                child = sys.modules.get(parent_key)
+                if child is not None:
+                    setattr(parent, part, child)
+            child = getattr(parent, part, None)
+            if child is None:
+                break
+            parent = child
+
+
+_seed_app_module_aliases()
 
 @pytest.fixture
 def mock_resume():
@@ -93,3 +177,58 @@ def client():
     """Create a test client"""
     from app.main import app
     return TestClient(app)
+
+
+class FakeAIClient:
+    """Drop-in replacement for AIClient in tests.
+
+    `embed`: deterministic, hash-based 16-dim unit vectors. Two identical
+        strings always get the same vector; different strings get
+        different-but-stable vectors. Cosine similarity is well-defined
+        and not random, so threshold assertions are stable.
+    `complete`: returns a canned response. Tests that need a specific
+        response set `canned_completion` on the instance.
+    """
+
+    DIM = 16
+
+    def __init__(self):
+        self.canned_completion: Optional[str] = None
+        self.embed_calls: List[List[str]] = []
+        self.complete_calls: List[tuple] = []
+
+    @classmethod
+    def _vec(cls, text: str) -> List[float]:
+        # SHA256 hash -> DIM floats in [-1, 1], then L2-normalized.
+        h = hashlib.sha256(text.lower().encode("utf-8")).digest()
+        raw = [(b / 127.5) - 1.0 for b in h[: cls.DIM]]
+        norm = math.sqrt(sum(x * x for x in raw)) or 1.0
+        return [x / norm for x in raw]
+
+    def embed(self, texts: List[str]) -> List[List[float]]:
+        self.embed_calls.append(list(texts))
+        return [self._vec(t) for t in texts]
+
+    def complete(self, system: str, user: str, *, max_tokens: int) -> str:
+        self.complete_calls.append((system, user, max_tokens))
+        if self.canned_completion is not None:
+            return self.canned_completion
+        # Default canned response is an empty JSON array — safe for
+        # the suggestions module's phase-2 parser.
+        return json.dumps([])
+
+
+@pytest.fixture
+def fake_ai_client():
+    """A fresh FakeAIClient per test (no state leaks across tests)."""
+    return FakeAIClient()
+
+
+@pytest.fixture
+def fake_ai_with_completion():
+    """Factory: returns a FakeAIClient pre-loaded with a canned completion."""
+    def _make(completion: str) -> FakeAIClient:
+        c = FakeAIClient()
+        c.canned_completion = completion
+        return c
+    return _make
