@@ -16,3 +16,6 @@ setuptools
 python-multipart
 pdfplumber
 pymupdf
+pyyaml
+pydantic-settings>=2.0,<2.1
+rapidfuzz
