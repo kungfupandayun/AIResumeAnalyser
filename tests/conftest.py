@@ -20,6 +20,10 @@ def _seed_app_module_aliases():
     Strategy: import bare modules first, then register them under the
     'app.' namespace in sys.modules before any test-module import can
     create a divergent 'app.' copy.
+
+    Also wire submodule attributes on parent module objects so that
+    monkeypatch.setattr("app.services.analyzer.X") can resolve by
+    walking getattr chains: app -> services -> analyzer -> X.
     """
     bare_prefixes = [
         "models",
@@ -36,6 +40,8 @@ def _seed_app_module_aliases():
         "services.scorers.education",
         "services.scorers.summary",
         "services.ai_client",
+        "services.analyzer",
+        "services.suggestions",
         "services.resume_service",
         "core",
         "core.config",
@@ -49,6 +55,33 @@ def _seed_app_module_aliases():
             continue
         app_key = f"app.{bare}"
         sys.modules.setdefault(app_key, mod)
+
+    # Force-import the real app package so sys.modules["app"] is populated,
+    # then wire bare submodule objects as attributes on the app module hierarchy.
+    # This is needed so monkeypatch.setattr("app.services.analyzer.X") can
+    # traverse: __import__("app") -> getattr(app, "services") -> getattr(services, "analyzer")
+    try:
+        app_mod = importlib.import_module("app")
+    except ModuleNotFoundError:
+        return
+
+    for bare in bare_prefixes:
+        bare_mod = sys.modules.get(bare)
+        if bare_mod is None:
+            continue
+        # Walk the dotted parts and set attributes at each level.
+        parts = bare.split(".")
+        parent = app_mod
+        for part in parts:
+            if not hasattr(parent, part):
+                parent_key = parent.__name__ + "." + part
+                child = sys.modules.get(parent_key)
+                if child is not None:
+                    setattr(parent, part, child)
+            child = getattr(parent, part, None)
+            if child is None:
+                break
+            parent = child
 
 
 _seed_app_module_aliases()
