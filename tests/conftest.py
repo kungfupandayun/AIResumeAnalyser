@@ -1,3 +1,6 @@
+import sys
+import importlib
+
 import pytest
 import hashlib
 import json
@@ -5,6 +8,50 @@ import math
 from typing import List, Optional
 from fastapi.testclient import TestClient
 from datetime import date
+
+
+def _seed_app_module_aliases():
+    """Pre-seed sys.modules so 'app.X' and 'X' resolve to the same objects.
+
+    pytest.ini sets pythonpath = app, so bare imports ('models.analysis')
+    and app-prefixed imports ('app.models.analysis') would create two
+    separate module objects with incompatible Pydantic v2 class identities.
+
+    Strategy: import bare modules first, then register them under the
+    'app.' namespace in sys.modules before any test-module import can
+    create a divergent 'app.' copy.
+    """
+    bare_prefixes = [
+        "models",
+        "models.analysis",
+        "models.job",
+        "models.resume",
+        "models.resumeInRawText",
+        "services",
+        "services.scorers",
+        "services.scorers.base",
+        "services.scorers.skills",
+        "services.scorers.experience",
+        "services.scorers.seniority",
+        "services.scorers.education",
+        "services.scorers.summary",
+        "services.ai_client",
+        "services.resume_service",
+        "core",
+        "core.config",
+        "utils",
+        "data",
+    ]
+    for bare in bare_prefixes:
+        try:
+            mod = importlib.import_module(bare)
+        except ModuleNotFoundError:
+            continue
+        app_key = f"app.{bare}"
+        sys.modules.setdefault(app_key, mod)
+
+
+_seed_app_module_aliases()
 
 @pytest.fixture
 def mock_resume():
