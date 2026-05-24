@@ -14,8 +14,9 @@ var/
 sdist/
 develop-eggs/
 .installed.cfg
-lib/
-lib64/
+# Anchored to repo root so they don't match frontend/src/lib/
+/lib/
+/lib64/
 
 # Virtual environments
 venv/
@@ -42,3 +43,6 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# Superpowers brainstorm session files
+.superpowers/
