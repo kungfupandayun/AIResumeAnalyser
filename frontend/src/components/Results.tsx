@@ -75,9 +75,11 @@ export function Results({ data, loading, error }: Props) {
                 key={d.name}
                 dim={d}
                 showNoSkillsNotice={
-                  d.name === "skills" &&
-                  d.score === 100 &&
-                  data.gaps.every((g) => g.category !== "skills")
+                  // Match the rationale string from app/services/scorers/skills.py
+                  // (set only when JD has no required_skills). Earlier we proxied
+                  // via score===100 + no gaps, but that false-positive'd a perfect
+                  // match against a real required-skills list.
+                  d.name === "skills" && d.rationale === "JD lists no required skills"
                 }
               />
             ))}

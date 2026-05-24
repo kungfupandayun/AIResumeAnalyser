@@ -79,12 +79,22 @@ describe("<Results />", () => {
     expect(screen.getByText(/refreshing/i)).toBeInTheDocument();
   });
 
-  it("no required_skills + no skills gaps: shows the inline notice on skills dimension", () => {
+  it("no required_skills in JD: shows the inline notice on skills dimension", () => {
+    // The notice fires on the backend's specific rationale, NOT on a
+    // score===100 + no-gaps proxy (which false-positive'd a perfect match
+    // against a real required-skills list — caught via Playwright).
     const data = makeResponse({ gaps: [] });
-    // Use a query for the notice text — implementation reads gaps and shows the notice when skills score is 100 with empty gaps.
-    // To trigger reliably: skills score 100 + empty gaps signals "no required skills".
     data.dimension_scores = [{ name: "skills", score: 100, weight: 1, rationale: "JD lists no required skills" }];
     render(<Results data={data} loading={false} error={null} />);
     expect(screen.getByText(/no required skills listed/i)).toBeInTheDocument();
+  });
+
+  it("perfect skills match WITH required_skills: does NOT show the no-skills notice", () => {
+    // Regression test: previously the predicate was `score===100 && no-skills-gaps`
+    // which incorrectly fired here too. Now it keys off the rationale string.
+    const data = makeResponse({ gaps: [] });
+    data.dimension_scores = [{ name: "skills", score: 100, weight: 1, rationale: "1/1 required skills matched" }];
+    render(<Results data={data} loading={false} error={null} />);
+    expect(screen.queryByText(/no required skills listed/i)).not.toBeInTheDocument();
   });
 });
