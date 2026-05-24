@@ -9,14 +9,14 @@
 ## 1. Goal & Non-goals
 
 ### Goal
-A single-page web UI that lets a user enter a structured resume and a job description, click **Analyze**, and see the existing `AnalysisResponse` (overall score, dimension breakdown, gaps, suggestions) rendered in a useful way. The frontend talks only to the existing backend; no backend changes are required for v1.
+A single-page web UI that lets a user enter a (PII-minimized) structured resume and a job description, click **Analyze**, and see the existing `AnalysisResponse` (overall score, dimension breakdown, gaps, suggestions) rendered in a useful way. The frontend talks only to the backend; the only backend changes are the privacy-driven schema edits in §3.1.
 
 ### Non-goals (explicitly out of scope for this spec)
 1. **Persistence** — no DB, no saved analyses, no history. State lives in React for the session and disappears on reload.
 2. **User accounts / auth.**
 3. **PDF upload** — `POST /api/resume/upload-resume` exists but `parse_resume` produces only a partial Resume. Wiring it up would require fixing the parser bugs first; that's its own sub-project.
 4. **Free-text resume / JD intake with LLM extraction.** Users provide structured input (resume = form fields; JD = title + description text + manual required-skills tags).
-5. **Backend changes.** No new endpoints, no schema changes, no router changes. The existing `POST /api/resume/analyze` contract is taken as fixed.
+5. **Backend analyzer / endpoint changes.** No new endpoints, no scorer changes, no router changes. The only backend edits in v1 are the `Resume` model edits in §3.1 (removing PII fields).
 6. **Deployment.** Dev workflow only (`vite dev` + `uvicorn`). Production hosting, FastAPI-serves-static-dist, CI, etc. are a later sub-project.
 7. **Auto-generated TypeScript types from OpenAPI.** v1 hand-mirrors the Pydantic models; auto-gen is a v2 win.
 8. **E2E tests, visual regression tests, accessibility audits.** Component + hook tests + one integration smoke test are the v1 bar.
@@ -33,12 +33,13 @@ These get their own specs after this work lands.
 | D2 | **Tailwind CSS + shadcn/ui** for styling and components. | Copy-in (not npm-installed) accessible components built on Radix primitives. We own the code, so customization is straightforward. Covers form, input, tag, badge, card, alert out of the box. |
 | D3 | Frontend lives in a new top-level **`frontend/`** directory, sibling to `app/`. | Keeps the Python backend untouched. Standard monorepo shape. |
 | D4 | **Vite dev proxy** forwards `/api/*` to `http://localhost:8000`. | App code calls `fetch("/api/resume/analyze", ...)` with no CORS handling and no env-specific base URL. |
-| D5 | **Structured form** for resume input, mirroring the existing `Resume` Pydantic model 1:1. | Zero backend changes; lowest risk. Friction is a v1-acceptable trade-off until free-text intake exists. |
+| D5 | **Structured form** for resume input, mirroring the (PII-minimized) `Resume` Pydantic model 1:1. | Low risk, minimal coupling. Friction is a v1-acceptable trade-off until free-text intake exists. |
 | D6 | **Paste JD text + manual required-skills tag input** for JD. | Matches how users encounter real JDs (copy from LinkedIn) and guarantees `SkillsScorer` has something to compare against (without it, skills always scores 100). |
 | D7 | **Single-page layout**: resume left, JD right, centered Analyze button, full-width results section below. | Settled visually in brainstorming (`.superpowers/brainstorm/.../layout-v2.html`). Stacks vertically on mobile. |
 | D8 | **Internal React structure = feature components + one hook** (not single-file, not feature folders + state library). | Smallest structure that keeps `App.tsx` a layout file and each component independently testable. |
 | D9 | **Hand-mirrored `types.ts`**, with a comment pointing at `app/models/analysis.py` as source of truth, plus one integration test using a real-shape `AnalysisResponse`. | Cheap drift safety net without adding OpenAPI codegen tooling. |
 | D10 | **Test stack = Vitest + React Testing Library + MSW.** | Vite-native runner, user-centric component queries, network-level API stubs. |
+| D11 | **Drop PII from `Resume` schema** (name, email, phone) and **reduce location to `country`**. Frontend never collects these. None of the existing scorers read these fields. | Privacy at the data layer, not just the UI. Backend cannot accept PII the analyzer doesn't need. Old test fixtures (`tests/conftest.py:mock_resume`, `tests/fixtures/golden.py`) need updating to match the new shape — that breakage is intentional. |
 
 ---
 
@@ -46,7 +47,7 @@ These get their own specs after this work lands.
 
 ```
 AIResumeAnalyser/
-├─ app/                           # existing FastAPI backend (untouched)
+├─ app/                           # existing FastAPI backend (only Resume model edited, see §3.1)
 ├─ frontend/                      # NEW
 │  ├─ src/
 │  │  ├─ App.tsx                  # layout shell + top-level state
@@ -75,6 +76,34 @@ AIResumeAnalyser/
 
 `frontend/` has its own `package.json` and `tsconfig.json` and is self-contained. The Python project's tooling does not need to know about it.
 
+### 3.1 Backend schema changes (PII removal)
+
+The frontend never collects name / email / phone, and reduces "location" to "country". The backend `Resume` model is changed to match — both the data and the schema rules drop the PII fields, so old or malicious clients can't push them through either.
+
+**Edits to `app/models/resume.py`:**
+
+| Before | After |
+|---|---|
+| `Resume.name: str` (required, `min_length=1`) | **removed** |
+| `Resume.contact: ContactInfo` (required) | **removed** |
+| `class ContactInfo` (with `email: EmailStr`, `phone: str` w/ regex, `location: str`, optional `linkedin` / `github` / `portfolio`) | **removed entirely** — none of its fields are read by any scorer |
+| (no country field) | `Resume.country: Optional[str] = None` — free text, accepts whatever the user types in the country input |
+
+`Experience`, `Education`, and `Project` are **unchanged** — they don't carry PII (institution and company names are reference data, not personal identifiers).
+
+**Implication for the existing test suite (must be updated as part of v1):**
+- `tests/conftest.py:mock_resume` — drop `name`, drop `contact`, optionally add `country`.
+- `tests/fixtures/golden.py` — every `Resume(...)` constructor loses `name=` and `contact=`.
+- `tests/test_models.py` — any test asserting `Resume(name=...)` or `ContactInfo(...)` is rewritten.
+- `tests/test_resume_router.py` — payloads use the new shape.
+
+No scorer test changes are expected (scorers don't read these fields), and `analyzer.py` is untouched.
+
+**Privacy posture:**
+- The backend cannot accept, log, or return name / email / phone — they aren't part of the schema. A POST that includes them gets a 422 ("extra inputs not permitted" if we set `model_config = ConfigDict(extra='forbid')`, otherwise they're silently dropped — we add `extra='forbid'` to make the rejection explicit).
+- `country` stays optional. Users who don't want to share it leave it blank.
+- This sub-project does NOT add request logging anywhere. If logging is added later, the spec for that work must re-confirm the PII guarantee.
+
 ---
 
 ## 4. Component contracts
@@ -89,9 +118,16 @@ type Props = {
   fieldErrors?: Record<string, string>;  // path → message
 };
 ```
-- Renders: name, contact (email/phone/location + optional linkedin/github/portfolio URLs), summary textarea, skills tag input, experience array (with `+ Add another` and per-row delete), education array, projects array (optional).
+- Renders **no PII fields**: no name, no email, no phone, no street/city. The form opens at:
+  - `country` (single optional text input or country-list combobox — see §6),
+  - `summary` textarea,
+  - `skills` tag input,
+  - `experience` array (with `+ Add another` and per-row delete),
+  - `education` array (with `+ Add another` and per-row delete),
+  - `projects` array (optional, with `+ Add another` and per-row delete).
+- A short notice near the top of the form: *"We don't collect your name, email, or phone — only the parts the analyzer actually uses."* This sets the right expectation and prevents users from thinking the form is broken.
 - Pure presentation. Calls `onChange` with the next full `Resume` on every keystroke.
-- `fieldErrors` is keyed by dotted path (e.g. `"contact.email"`, `"experience[0].descriptions"`); messages render inline next to the offending field.
+- `fieldErrors` is keyed by dotted path (e.g. `"experience[0].descriptions"`); messages render inline next to the offending field.
 
 ### `<JdForm>`
 ```ts
@@ -167,10 +203,6 @@ Every failure has a defined render target so the user knows what to fix.
 
 ### Pre-submit edge cases
 - **Minimum-valid gate (Analyze button disabled until satisfied).** The button stays disabled until every backend-required constraint passes, so the user never sees a 422 for something the UI could have caught. The check covers:
-  - `resume.name` non-empty
-  - `resume.contact.email` parses as an email (`EmailStr`)
-  - `resume.contact.phone` matches `^[0-9\-\+\(\)\s]+$`
-  - `resume.contact.location` non-empty
   - `resume.skills.length >= 1` (schema `min_length=1`)
   - Each `resume.experience[i]`: `title`, `company`, valid `start_date` (ISO date), `descriptions.length >= 1` with each entry non-empty
   - Each `resume.education[i]`: `degree`, `institution` non-empty
@@ -178,7 +210,7 @@ Every failure has a defined render target so the user knows what to fix.
   - `jd.description` present (string or explicit `null` — `Optional[str]` with no default is treated as required by Pydantic v2)
   - `jd.required_skills` present (list or explicit `null` — same reason)
 
-  When disabled, render a small "Required fields missing" hint near the button. We do **not** auto-create empty array rows behind the user's back.
+  `resume.country` is optional and **not** in the gate. When disabled, render a small "Required fields missing" hint near the button. We do **not** auto-create empty array rows behind the user's back.
 - **No `required_skills` in JD.** Backend silently scores skills 100. The skills dimension bar in `<Results>` renders an inline notice: *"No required skills listed in the JD — add some for a meaningful skills score."* This is the only place we surface a known UX-confusing backend behavior.
 - **Empty `resume.experience` list.** Schema-allowed but `ExperienceScorer` returns 0 with a high-severity gap. We don't block this in the gate — the score itself communicates the problem.
 
@@ -193,9 +225,12 @@ To make `+ Add another` meaningful (clone-an-existing-row) and the empty form no
 // `end_date: string | null` during editing. The minimum-valid gate (§5) ensures
 // `null` start_dates can't be submitted. On submit, dates are serialized as
 // ISO `YYYY-MM-DD` strings, which Pydantic's `date` accepts.
+//
+// Note on country: optional throughout. The country input can be a plain text
+// input or a combobox seeded with an ISO 3166 country list — picked during
+// implementation. Either is acceptable; the model just stores a string.
 const initialResume: Resume = {
-  name: "",
-  contact: { email: "", phone: "", location: "" },
+  country: null,
   summary: null,
   skills: [],                     // populated via tag input
   experience: [
