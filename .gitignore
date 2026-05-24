@@ -42,3 +42,6 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# Superpowers brainstorm session files
+.superpowers/
