@@ -157,6 +157,7 @@ export function ResumeForm({ value, onChange, fieldErrors = {} }: Props) {
                   <div key={j} className="flex gap-2">
                     <Input
                       value={d}
+                      aria-label={`Bullet ${j + 1} for experience ${i + 1}`}
                       onChange={(e) => {
                         const next = exp.descriptions.map((x, idx) => (idx === j ? e.target.value : x));
                         updateExperience(i, { descriptions: next });
@@ -278,14 +279,28 @@ export function ResumeForm({ value, onChange, fieldErrors = {} }: Props) {
               <div className="space-y-1">
                 <Label>Contributions</Label>
                 {p.contributions.map((c, j) => (
-                  <Input
-                    key={j}
-                    value={c}
-                    onChange={(e) => {
-                      const next = p.contributions.map((x, idx) => (idx === j ? e.target.value : x));
-                      updateProject(i, { contributions: next });
-                    }}
-                  />
+                  <div key={j} className="flex gap-2">
+                    <Input
+                      value={c}
+                      aria-label={`Contribution ${j + 1} for project ${i + 1}`}
+                      onChange={(e) => {
+                        const next = p.contributions.map((x, idx) => (idx === j ? e.target.value : x));
+                        updateProject(i, { contributions: next });
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Remove contribution ${j + 1} from project ${i + 1}`}
+                      onClick={() => {
+                        const next = p.contributions.filter((_, idx) => idx !== j);
+                        updateProject(i, { contributions: next.length ? next : [""] });
+                      }}
+                    >
+                      ×
+                    </Button>
+                  </div>
                 ))}
                 <Button
                   type="button"

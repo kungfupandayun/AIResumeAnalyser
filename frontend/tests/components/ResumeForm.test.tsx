@@ -99,4 +99,27 @@ describe("<ResumeForm />", () => {
     const lastCall = onChange.mock.lastCall![0] as Resume;
     expect(lastCall.experience[0].descriptions.length).toBe(2);
   });
+
+  it("removes a project contribution via delete button", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const withProject: Resume = {
+      ...seed,
+      projects: [
+        {
+          name: "P",
+          tech_stack: [],
+          description: "",
+          contributions: ["first", "second"],
+        },
+      ],
+    };
+    render(<ResumeForm value={withProject} onChange={onChange} />);
+    await user.click(
+      screen.getByRole("button", { name: /remove contribution 1 from project 1/i }),
+    );
+    const lastCall = onChange.mock.lastCall![0] as Resume;
+    expect(lastCall.projects![0].contributions.length).toBe(1);
+    expect(lastCall.projects![0].contributions[0]).toBe("second");
+  });
 });
