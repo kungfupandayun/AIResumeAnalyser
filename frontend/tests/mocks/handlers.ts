@@ -1,9 +1,8 @@
 import { http, HttpResponse } from "msw";
-// import type { AnalysisResponse } from "@/types";  // Uncommented in Task 6
+import type { AnalysisResponse } from "@/types";
 
 // Default canned response. Individual tests override via server.use(...).
-// Type assertion to AnalysisResponse is restored in Task 6.
-export const defaultAnalysisResponse = {
+export const defaultAnalysisResponse: AnalysisResponse = {
   mode: "hybrid",
   overall_score: 82.5,
   dimension_scores: [
