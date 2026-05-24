@@ -3,3 +3,10 @@ dist/
 .vite/
 coverage/
 *.log
+
+# tsc -b output (composite project from tsconfig.node.json)
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+vitest.config.js
+vitest.config.d.ts
