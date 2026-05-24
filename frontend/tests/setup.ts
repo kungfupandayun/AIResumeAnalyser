@@ -11,47 +11,49 @@ import { server } from "./mocks/server";
 // constructor rejects the signal with:
 //   "RequestInit: Expected signal to be an instance of AbortSignal."
 //
-// Fix: patch the global Request constructor to silently strip the `signal`
-// property from init when its `instanceof AbortSignal` check fails (cross-
-// realm mismatch). We then wire up abort manually via addEventListener so
-// signal semantics are preserved.
+// Fix: subclass the global Request. Strip a cross-realm signal from init
+// before calling super(), preserve it in a WeakMap, and re-expose it via a
+// signal getter override. A WeakMap (instead of a private class field) keeps
+// super() the root statement of the constructor so TS doesn't reject it.
 // ---------------------------------------------------------------------------
 const _OriginalRequest = globalThis.Request;
 
-class PatchedRequest extends _OriginalRequest {
-  // Keep a reference to the original signal for callers that read request.signal.
-  #externalSignal: AbortSignal | undefined;
+const signalMap = new WeakMap<Request, AbortSignal>();
 
-  constructor(input: RequestInfo | URL, init?: RequestInit) {
-    if (init?.signal) {
-      try {
-        // Try constructing with the signal. If it works, great.
-        super(input, init);
-        return;
-      } catch (err: unknown) {
-        if (
-          err instanceof TypeError &&
-          (err as TypeError).message.includes("AbortSignal")
-        ) {
-          // Cross-realm AbortSignal — strip it and retry.
-          const { signal, ...rest } = init;
-          super(input, rest);
-          this.#externalSignal = signal;
-          return;
-        }
-        throw err;
-      }
+function stripCrossRealmSignal(
+  input: RequestInfo | URL,
+  init: RequestInit,
+): { init: RequestInit; externalSignal: AbortSignal | undefined } {
+  if (!init.signal) return { init, externalSignal: undefined };
+  try {
+    // Probe whether undici accepts this signal. If it does, no strip needed.
+    new _OriginalRequest(input, init);
+    return { init, externalSignal: undefined };
+  } catch (err: unknown) {
+    if (
+      err instanceof TypeError &&
+      err.message.includes("AbortSignal")
+    ) {
+      const { signal, ...rest } = init;
+      return { init: rest, externalSignal: signal };
     }
-    super(input, init);
-  }
-
-  override get signal(): AbortSignal {
-    return this.#externalSignal ?? super.signal;
+    throw err;
   }
 }
 
-// @ts-expect-error — PatchedRequest is a drop-in replacement
-globalThis.Request = PatchedRequest;
+class PatchedRequest extends _OriginalRequest {
+  constructor(input: RequestInfo | URL, init?: RequestInit) {
+    const { init: actualInit, externalSignal } = stripCrossRealmSignal(input, init ?? {});
+    super(input, actualInit);
+    if (externalSignal) signalMap.set(this, externalSignal);
+  }
+
+  override get signal(): AbortSignal {
+    return signalMap.get(this) ?? super.signal;
+  }
+}
+
+globalThis.Request = PatchedRequest as typeof globalThis.Request;
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
