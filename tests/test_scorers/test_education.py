@@ -1,14 +1,12 @@
 import pytest
 
 from app.models.job import JobDescription
-from app.models.resume import Resume, ContactInfo, Education
+from app.models.resume import Resume, Education
 from app.services.scorers.education import EducationScorer, rank_degree
 
 
 def _resume(degrees):
     return Resume(
-        name="T",
-        contact=ContactInfo(email="t@x.com", phone="5", location="X"),
         skills=["Python"],
         experience=[],
         education=[Education(degree=d, institution="Inst") for d in degrees],

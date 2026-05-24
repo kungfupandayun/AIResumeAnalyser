@@ -81,12 +81,6 @@ class TestAnalyzeEndpoint:
     def test_analyze_with_minimal_resume(self, client, mock_job_description):
         """Test analysis with minimal resume data"""
         minimal_resume = {
-            "name": "Jane Smith",
-            "contact": {
-                "email": "jane@example.com",
-                "phone": "555-9999",
-                "location": "New York, NY"
-            },
             "skills": ["Python"],
             "experience": [],
             "education": []
@@ -146,7 +140,7 @@ class TestAnalyzeEndpoint:
         """Test error handling when required fields are missing"""
         # Missing job_description
         payload = {
-            "resume": {"name": "Test"}
+            "resume": {"skills": ["Python"], "experience": [], "education": []}
         }
         response = client.post("/api/resume/analyze", json=payload)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -159,24 +153,26 @@ class TestAnalyzeEndpoint:
 
 class TestResumeValidation:
     """Test resume data validation"""
-    
-    def test_invalid_email_in_contact(self, client, mock_resume, mock_job_description):
-        """Test validation of invalid email"""
+
+    def test_extra_fields_rejected(self, client, mock_resume, mock_job_description):
+        """Resume model uses extra='forbid', so unknown fields yield 422"""
         bad_resume = mock_resume.copy()
-        bad_resume["contact"]["email"] = "not-an-email"
-        
+        bad_resume["name"] = "Should Not Be Accepted"
+
         payload = {
             "resume": bad_resume,
             "job_description": mock_job_description
         }
         response = client.post("/api/resume/analyze", json=payload)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-    
-    def test_missing_required_contact_info(self, client, mock_resume, mock_job_description):
-        """Test validation of missing contact info"""
-        bad_resume = mock_resume.copy()
-        bad_resume["contact"] = {}  # Empty contact
-        
+
+    def test_missing_required_skills(self, client, mock_job_description):
+        """Test validation when required 'skills' field is missing"""
+        bad_resume = {
+            "experience": [],
+            "education": []
+        }
+
         payload = {
             "resume": bad_resume,
             "job_description": mock_job_description

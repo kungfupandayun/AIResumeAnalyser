@@ -90,15 +90,7 @@ _seed_app_module_aliases()
 def mock_resume():
     """Mock resume data for testing"""
     return {
-        "name": "John Doe",
-        "contact": {
-            "email": "john.doe@example.com",
-            "phone": "+1-555-123-4567",
-            "location": "San Francisco, CA",
-            "linkedin": "https://linkedin.com/in/johndoe",
-            "github": "https://github.com/johndoe",
-            "portfolio": "https://johndoe.dev"
-        },
+        "country": "United States",
         "summary": "Senior Software Engineer with 8+ years of experience in Python, FastAPI, and cloud technologies",
         "skills": [
             "Python", "FastAPI", "AWS", "Docker", "Kubernetes", "PostgreSQL",

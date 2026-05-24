@@ -1,14 +1,12 @@
 import pytest
 
 from app.models.job import JobDescription
-from app.models.resume import Resume, ContactInfo
+from app.models.resume import Resume
 from app.services.scorers.summary import SummaryAlignmentScorer
 
 
 def _resume(summary):
     return Resume(
-        name="T",
-        contact=ContactInfo(email="t@x.com", phone="5", location="X"),
         summary=summary,
         skills=["Python"],
         experience=[],

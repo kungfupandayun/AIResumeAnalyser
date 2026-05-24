@@ -4,7 +4,7 @@ import pytest
 
 from app.models.analysis import DimensionScore, Gap
 from app.models.job import JobDescription
-from app.models.resume import Resume, ContactInfo, Experience
+from app.models.resume import Resume, Experience
 from app.services.scorers.base import DimensionResult
 from app.services.suggestions import build_suggestions
 from datetime import date
@@ -12,8 +12,6 @@ from datetime import date
 
 def _minimal_resume(bullets=None):
     return Resume(
-        name="T",
-        contact=ContactInfo(email="t@x.com", phone="5", location="X"),
         skills=["Python"],
         experience=[
             Experience(

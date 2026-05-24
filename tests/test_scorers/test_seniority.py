@@ -3,7 +3,7 @@ from datetime import date
 import pytest
 
 from app.models.job import JobDescription
-from app.models.resume import Resume, ContactInfo, Experience
+from app.models.resume import Resume, Experience
 from app.services.scorers.seniority import (
     SeniorityScorer,
     extract_required_years,
@@ -13,8 +13,6 @@ from app.services.scorers.seniority import (
 
 def _resume_with_experience(experiences):
     return Resume(
-        name="T",
-        contact=ContactInfo(email="t@x.com", phone="5", location="X"),
         skills=["Python"],
         experience=experiences,
         education=[],

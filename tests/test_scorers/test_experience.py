@@ -3,14 +3,12 @@ from datetime import date
 import pytest
 
 from app.models.job import JobDescription
-from app.models.resume import Resume, ContactInfo, Experience
+from app.models.resume import Resume, Experience
 from app.services.scorers.experience import ExperienceScorer
 
 
 def _resume_with_bullets(bullets):
     return Resume(
-        name="Test",
-        contact=ContactInfo(email="t@x.com", phone="555-0", location="X"),
         skills=["Python"],
         experience=[
             Experience(
@@ -76,8 +74,6 @@ class TestExperienceScorerKeywordPath:
         # applies() takes only jd, so this is checked at score() time:
         scorer = ExperienceScorer()
         resume = Resume(
-            name="N",
-            contact=ContactInfo(email="t@x.com", phone="5", location="X"),
             skills=["Python"],
             experience=[],
             education=[],

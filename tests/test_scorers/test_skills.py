@@ -1,18 +1,12 @@
 import pytest
 
 from app.models.job import JobDescription
-from app.models.resume import Resume, ContactInfo
+from app.models.resume import Resume
 from app.services.scorers.skills import SkillsScorer
 
 
 def _resume(skills, summary=None):
     return Resume(
-        name="Test User",
-        contact=ContactInfo(
-            email="t@example.com",
-            phone="555-0000",
-            location="X",
-        ),
         summary=summary,
         skills=skills,
         experience=[],

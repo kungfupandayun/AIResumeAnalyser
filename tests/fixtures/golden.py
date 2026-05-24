@@ -2,7 +2,6 @@ from datetime import date
 
 from app.models.job import JobDescription
 from app.models.resume import (
-    ContactInfo,
     Education,
     Experience,
     Project,
@@ -10,15 +9,10 @@ from app.models.resume import (
 )
 
 
-def _contact():
-    return ContactInfo(email="t@x.com", phone="555-0000", location="SF, CA")
-
-
 def strong_match():
     """Senior Python engineer applying to a senior Python role — should score high."""
     resume = Resume(
-        name="Sam Senior",
-        contact=_contact(),
+        country="United States",
         summary="Senior backend engineer with 8 years building FastAPI services on AWS",
         skills=["Python", "FastAPI", "AWS", "Docker", "PostgreSQL", "Kubernetes"],
         experience=[
@@ -52,8 +46,7 @@ def strong_match():
 def weak_match():
     """Junior frontend dev applying for a senior backend role — should score low."""
     resume = Resume(
-        name="Jamie Junior",
-        contact=_contact(),
+        country="United States",
         summary="Frontend developer who enjoys React and CSS",
         skills=["JavaScript", "React", "CSS"],
         experience=[
@@ -97,8 +90,7 @@ def no_years_in_jd():
 def rich_jd():
     """JD has rich free-text description — exercises ExperienceScorer thoroughly."""
     resume = Resume(
-        name="Pat Pro",
-        contact=_contact(),
+        country="United States",
         summary="Backend engineer with database expertise",
         skills=["Python", "PostgreSQL"],
         experience=[
